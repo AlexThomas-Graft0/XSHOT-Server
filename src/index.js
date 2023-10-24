@@ -110,7 +110,9 @@ app.get("/capture", async (req, res) => {
   console.log({ urls, resolutions });
 
   // Launch Puppeteer
-  const browser = await puppeteer.launch();
+  const browser = await puppeteer.launch({
+    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+  });
 
   const allPromises = [];
 
