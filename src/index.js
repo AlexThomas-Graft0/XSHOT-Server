@@ -82,30 +82,37 @@ app.get("/create-bucket", async (req, res) => {
 app.get("/capture", async (req, res) => {
   const url = req.query.url;
   const resolutions = req.query.resolutions.split(",");
-
-  // Fetch and parse the sitemap
-  const sitemapResponse = await fetch(`${url}/sitemap.xml`);
-  const sitemapXml = await sitemapResponse.text();
-  const sitemapJson = await xml2js.parseStringPromise(sitemapXml);
+  const userId = req.query.userId;
 
   let urls = [];
-  if (sitemapJson.urlset) {
-    // Regular sitemap
-    urls = sitemapJson.urlset.url.map((u) => u.loc[0]);
-  } else if (sitemapJson.sitemapindex) {
-    // Sitemap index
-    const sitemapUrls = sitemapJson.sitemapindex.sitemap.map((s) => s.loc[0]);
-    for (let sitemapUrl of sitemapUrls) {
-      const sitemapResponse = await fetch(sitemapUrl);
-      const sitemapXml = await sitemapResponse.text();
-      const sitemapJson = await xml2js.parseStringPromise(sitemapXml);
-      if (sitemapJson.urlset) {
-        urls.push(...sitemapJson.urlset.url.map((u) => u.loc[0]));
+  try {
+    // Fetch and parse the sitemap
+    const sitemapResponse = await fetch(`${url}/sitemap.xml`);
+    const sitemapXml = await sitemapResponse.text();
+    const sitemapJson = await xml2js.parseStringPromise(sitemapXml);
+
+    if (sitemapJson.urlset) {
+      // Regular sitemap
+      urls = sitemapJson.urlset.url.map((u) => u.loc[0]);
+    } else if (sitemapJson.sitemapindex) {
+      // Sitemap index
+      const sitemapUrls = sitemapJson.sitemapindex.sitemap.map((s) => s.loc[0]);
+      for (let sitemapUrl of sitemapUrls) {
+        const sitemapResponse = await fetch(sitemapUrl);
+        const sitemapXml = await sitemapResponse.text();
+        const sitemapJson = await xml2js.parseStringPromise(sitemapXml);
+        if (sitemapJson.urlset) {
+          urls.push(...sitemapJson.urlset.url.map((u) => u.loc[0]));
+        }
       }
     }
-  }
 
-  urls = [...new Set(urls)];
+    urls = [...new Set(urls)];
+  } catch (error) {
+    console.error("Failed to fetch sitemap:", error.message);
+
+    urls = [url];
+  }
 
   console.log({ urls, resolutions });
 
@@ -126,6 +133,7 @@ app.get("/capture", async (req, res) => {
             await page.setViewport({ width, height });
             await page.goto(pageUrl, {
               waitUntil: "networkidle0",
+              timeout: 0,
             });
 
             await autoScroll(page);
@@ -141,8 +149,7 @@ app.get("/capture", async (req, res) => {
 
             const resolutionFolder = resolution;
             const screenshotName = `${pageName}.png`;
-            /*  */
-            const storagePath = `${websiteFolder}/${resolutionFolder}/${screenshotName}`;
+            const storagePath = `${userId}/${websiteFolder}/${resolutionFolder}/${screenshotName}`;
             console.log({ storagePath });
             const { error: uploadError } = await supabase.storage
               .from("screenshots")
